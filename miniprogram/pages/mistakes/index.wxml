@@ -1,0 +1,28 @@
+<view class="page">
+  <view class="eyebrow">EVERY MISTAKE MATTERS</view>
+  <view class="row"><view class="heading">我的错题本</view><button class="primary small" bindtap="add">＋ 收录</button></view>
+  <view class="subtitle">共 {{total}} 道错题，让每一次错误都有收获。</view>
+  <view class="classification-filters">
+    <picker range="{{subjects}}" data-field="subject" data-range="subjects" bindchange="classify"><view class="picker">{{subject}} ⌄</view></picker>
+    <picker range="{{grades}}" data-field="gradeFilter" data-range="grades" bindchange="classify"><view class="picker">{{gradeFilter}} ⌄</view></picker>
+    <picker range="{{questionTypes}}" data-field="typeFilter" data-range="questionTypes" bindchange="classify"><view class="picker">{{typeFilter}} ⌄</view></picker>
+  </view>
+  <view class="filters">
+    <input class="search" placeholder="搜索题目、知识点…" placeholder-class="placeholder" value="{{search}}" bindinput="search"/>
+    <picker range="{{statuses}}" value="{{status}}" bindchange="changeStatus"><view class="picker">{{statuses[status]}} ⌄</view></picker>
+  </view>
+  <view wx:if="{{loading}}" class="loading">正在加载错题…</view>
+  <view wx:elif="{{error}}" class="error">{{error}}<button class="secondary retry" bindtap="refresh">重新加载</button></view>
+  <block wx:else>
+    <view wx:for="{{visible}}" wx:key="id" class="card q-card" data-id="{{item.id}}" bindtap="detail">
+      <view class="subject-icon">{{item.subject}}</view>
+      <view class="q-info">
+        <view class="row"><view class="q-title">{{item.title}}</view><text class="status {{item.mastered ? 'done' : ''}}">{{item.mastered ? '已掌握' : '待巩固'}}</text></view>
+        <view class="q-content">{{item.content}}</view>
+        <view class="q-meta"><text class="tag">{{item.subject}}</text><text wx:if="{{item.image_id}}" class="tag">含原图</text><text>{{item.grade || '未分类'}}</text><text>{{item.question_type || '未分类'}}</text><text>· {{item.difficulty}}</text></view>
+      </view>
+    </view>
+    <view wx:if="{{!visible.length}}" class="card empty"><view class="empty-title">这里还没有错题</view><view>换一个筛选条件，或收录第一道错题。</view><button class="secondary" bindtap="add">＋ 收录错题</button></view>
+  </block>
+  <view class="footnote">每一次认真回顾，都在积累新的进步。</view>
+</view>

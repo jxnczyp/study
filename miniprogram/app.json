@@ -1,0 +1,57 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/mistakes/index",
+    "pages/generate/index",
+    "pages/profile/index",
+    "pages/login/index",
+    "pages/add/index",
+    "pages/detail/index",
+    "pages/practice/index",
+    "pages/review/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "拾知 · 错题学习",
+    "navigationBarBackgroundColor": "#f7f8f3",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f8f3",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": true
+  },
+  "tabBar": {
+    "color": "#959d8a",
+    "selectedColor": "#285440",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "学习",
+        "iconPath": "assets/home.png",
+        "selectedIconPath": "assets/home-active.png"
+      },
+      {
+        "pagePath": "pages/mistakes/index",
+        "text": "错题本",
+        "iconPath": "assets/book.png",
+        "selectedIconPath": "assets/book-active.png"
+      },
+      {
+        "pagePath": "pages/generate/index",
+        "text": "练习",
+        "iconPath": "assets/spark.png",
+        "selectedIconPath": "assets/spark-active.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "assets/user.png",
+        "selectedIconPath": "assets/user-active.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}
+

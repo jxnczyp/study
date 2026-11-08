@@ -1,0 +1,9 @@
+{
+  "description": "拾知错题学习微信小程序",
+  "miniprogramRoot": "miniprogram/",
+  "compileType": "miniprogram",
+  "appid": "touristappid",
+  "projectname": "拾知错题学习",
+  "libVersion": "3.7.0",
+  "setting": { "urlCheck": true, "es6": true, "enhance": true, "postcss": true, "minified": true }
+}

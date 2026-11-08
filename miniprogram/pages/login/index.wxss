@@ -1,0 +1,5 @@
+/* 页面使用 app.wxss 中的统一样式。 */
+.quick-login{display:flex;align-items:center;justify-content:space-between;gap:20rpx;margin-top:28rpx;padding:24rpx}
+.quick-title{font-size:25rpx;font-weight:550;color:#536d46}
+.quick-email{font-size:21rpx;color:#a2ae93;margin-top:6rpx}
+.quick-button{flex-shrink:0;padding:14rpx 18rpx!important;font-size:21rpx!important}

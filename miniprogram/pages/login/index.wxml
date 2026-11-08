@@ -1,0 +1,32 @@
+<view class="page">
+  <view class="eyebrow">YOUR GROWTH STARTS HERE</view>
+  <view class="heading">{{register ? '开启你的进步之旅' : '欢迎回到拾知'}}</view>
+  <view class="subtitle">留住每一个知识点，看见每一点成长。</view>
+  <view class="tip">使用邮箱账号登录，网页与小程序共享同一份学习数据。</view>
+  <view wx:if="{{!register}}">
+    <view wx:if="{{quickUser}}" class="quick-login card">
+      <view>
+        <view class="quick-title">{{quickUser.name ? quickUser.name + '，欢迎回来' : '上次登录账号'}}</view>
+        <view class="quick-email">{{quickUser.email}}</view>
+      </view>
+      <button class="secondary quick-button" loading="{{busy}}" disabled="{{busy}}" bindtap="quickLogin">{{canQuickEnter ? '快捷登录' : '使用此账号'}} →</button>
+    </view>
+  </view>
+  <view class="card" style="margin-top:30rpx">
+    <block wx:if="{{register}}">
+      <view class="label">你的昵称</view>
+      <input class="input" placeholder="怎么称呼你？" placeholder-class="placeholder" value="{{name}}" data-field="name" bindinput="input" maxlength="30"/>
+    </block>
+    <view class="label">邮箱地址</view>
+    <input class="input" type="text" placeholder="hello@example.com" placeholder-class="placeholder" value="{{email}}" data-field="email" bindinput="input" maxlength="254"/>
+    <view class="row">
+      <view class="label">密码</view>
+      <view class="section-link" bindtap="togglePassword">{{showPassword ? '隐藏' : '显示'}}</view>
+    </view>
+    <input class="input" password="{{!showPassword}}" focus="{{focusPassword}}" placeholder="至少 8 位字符" placeholder-class="placeholder" value="{{password}}" data-field="password" bindinput="input" maxlength="128" confirm-type="done" bindconfirm="submit"/>
+    <view wx:if="{{error}}" class="error">{{error}}</view>
+    <button class="primary submit" loading="{{busy}}" disabled="{{busy}}" bindtap="submit">{{register ? '创建我的学习空间' : '登录学习空间'}} →</button>
+    <button class="ghost submit" bindtap="toggleMode">{{register ? '已有账号？去登录' : '还没有账号？免费注册'}}</button>
+  </view>
+  <view class="footnote">注册后将获得一组可删除的示例错题。</view>
+</view>
