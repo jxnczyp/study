@@ -1,8 +1,9 @@
 const { loadState, request, downloadPhoto, requireLogin, toast, startPractice } = require('../../utils/api');
 Page({
-  data: { question: null, loading: true, error: '', busy: false, loggedIn: false, imagePath: '', imageLoading: false, imageError: '' },
+  data: { question: null, loading: true, error: '', busy: false, loggedIn: false, imagePath: '', imageLoading: false, imageError: '', showAnswer: false },
   onLoad(options) { this.id = options.id; },
-  onShow() { this.refresh(); },
+  onShow() { this.setData({ showAnswer: false }); this.refresh(); },
+  revealAnswer() { this.setData({ showAnswer: true }); },
   async refresh() {
     try { const state = await loadState(); const question = state.questions.find(q => String(q.id) === this.id); this.setData({ loading: false, question: question || null, loggedIn: !!state.user, error: question ? '' : '这道错题已不存在' }); if (question && question.image_id && !this.data.imagePath) this.loadPhoto(); }
     catch(e) { this.setData({ loading: false, error: e.message }); }

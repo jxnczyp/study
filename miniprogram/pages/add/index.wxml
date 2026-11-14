@@ -1,1 +1,94 @@
-<view class="page"><view class="eyebrow">EVERY MISTAKE MATTERS</view><view class="heading">收录一道错题</view><view class="subtitle">记录问题，就是理解它的第一步。</view><view class="tip">整页作业、没有标准答案？<button class="primary small" bindtap="reviewPage">整页识别 · 辅助判题 →</button></view><view class="photo-panel"><view class="panel-title">拍一下，把错题留下来</view><view class="panel-note">题目图片会交给已配置的第三方视觉模型识别；请校对识别结果，再补充正确答案。</view><view class="photo-actions"><button class="primary" data-source="camera" bindtap="choosePhoto" disabled="{{busy || uploading || recognizing}}">◎ 拍照录入</button><button class="secondary" data-source="album" bindtap="choosePhoto" disabled="{{busy || uploading || recognizing}}">▧ 相册选图</button></view><block wx:if="{{imagePath}}"><image class="photo-preview" src="{{imagePath}}" mode="aspectFit" bindtap="previewPhoto"/><view class="row"><text class="photo-status">{{photoNote}}</text></view><view class="photo-actions"><button class="secondary small" bindtap="processPhoto" loading="{{uploading || recognizing}}" disabled="{{busy || uploading || recognizing}}">{{imageId ? '重新识别' : '重试上传并识别'}}</button><button class="ghost" bindtap="removePhoto" disabled="{{busy || uploading || recognizing}}">移除图片</button></view></block><view class="photo-tip">支持 JPG、PNG、WebP，单张不超过 8 MB；原图将随错题保存。</view></view><view class="form-columns"><view><view class="label">学科</view><picker range="{{subjects}}" value="{{subjectIndex}}" data-field="subjectIndex" bindchange="pick"><view class="form-picker">{{subjects[subjectIndex]}} ⌄</view></picker></view><view><view class="label">难度</view><picker range="{{difficulties}}" value="{{difficultyIndex}}" data-field="difficultyIndex" bindchange="pick"><view class="form-picker">{{difficulties[difficultyIndex]}} ⌄</view></picker></view></view><view class="form-columns"><view><view class="label">年级</view><picker range="{{grades}}" value="{{gradeIndex}}" data-field="gradeIndex" bindchange="pick"><view class="form-picker">{{grades[gradeIndex]}} ⌄</view></picker></view><view><view class="label">题型</view><picker range="{{questionTypes}}" value="{{typeIndex}}" data-field="typeIndex" bindchange="pick"><view class="form-picker">{{questionTypes[typeIndex]}} ⌄</view></picker></view></view><view class="label">自定义分类（选填，填写后优先使用）</view><input class="input" data-field="customGrade" bindinput="input" maxlength="40" placeholder="其他年级 / 学段"/><input class="input" data-field="customSubject" bindinput="input" maxlength="40" placeholder="其他学科 / 专业课程"/><input class="input" data-field="customType" bindinput="input" maxlength="40" placeholder="其他题型"/><view class="label">题目标题 *</view><input class="input" value="{{title}}" data-field="title" bindinput="input" maxlength="100" placeholder="例如：二次函数的顶点与最值" placeholder-class="placeholder"/><view class="label">题目内容 *</view><textarea class="textarea" value="{{content}}" data-field="content" bindinput="input" maxlength="10000" placeholder="输入完整题干，选择题请写出选项…" placeholder-class="placeholder"/><view class="label">正确答案 *</view><input class="input" value="{{answer}}" data-field="answer" bindinput="input" maxlength="1000" placeholder="填写正确答案" placeholder-class="placeholder"/><view class="label">思路与解析（选填）</view><textarea class="textarea short" value="{{explanation}}" data-field="explanation" bindinput="input" maxlength="10000" placeholder="写下解题思路，帮未来的自己少走弯路" placeholder-class="placeholder"/><view class="label">知识点（选填）</view><input class="input" value="{{topic}}" data-field="topic" bindinput="input" maxlength="100" placeholder="例如：二次函数" placeholder-class="placeholder"/><view class="label">出错原因</view><picker range="{{reasons}}" value="{{reasonIndex}}" data-field="reasonIndex" bindchange="pick"><view class="form-picker">{{reasons[reasonIndex]}} ⌄</view></picker><view wx:if="{{error}}" class="error">{{error}}</view><button class="primary submit" bindtap="save" loading="{{busy}}" disabled="{{busy || uploading || recognizing}}">＋ 保存到错题本</button></view>
+<view class="page">
+  <view class="eyebrow">EVERY MISTAKE MATTERS</view>
+  <view class="heading">收录错题</view>
+  <view class="subtitle">整页拍照逐题勾选，或手动录入一道错题。</view>
+  <view class="card sheet-card">
+    <view class="panel-title">整页识别 · 逐题勾选</view>
+    <view class="panel-note">识别印刷题与手写作答，模型独立解题辅助判题；模糊、缺材料或开放性题目标为「待确认」。这不是成绩评定。</view>
+    <view wx:if="{{checking}}" class="loading">正在检查服务状态…</view>
+    <view wx:elif="{{!enabled}}" class="error">尚未配置第三方视觉模型，整页识别暂不可用，可先手动录入。<button class="ghost" bindtap="loadCapabilities">重新检查服务</button></view>
+    <block wx:else>
+      <view class="form-columns">
+        <view><view class="label">年级提示</view><picker range="{{sheetGrades}}" value="{{hintGradeIndex}}" data-field="hintGradeIndex" bindchange="hint" disabled="{{busy}}"><view class="form-picker">{{sheetGrades[hintGradeIndex]}} ⌄</view></picker></view>
+        <view><view class="label">学科提示</view><picker range="{{sheetSubjects}}" value="{{hintSubjectIndex}}" data-field="hintSubjectIndex" bindchange="hint" disabled="{{busy}}"><view class="form-picker">{{sheetSubjects[hintSubjectIndex]}} ⌄</view></picker></view>
+      </view>
+      <view class="photo-actions">
+        <button class="primary" data-source="camera" bindtap="choosePhoto" disabled="{{busy}}">◎ 拍整页作业</button>
+        <button class="secondary" data-source="album" bindtap="choosePhoto" disabled="{{busy}}">▧ 相册选图</button>
+      </view>
+      <image wx:if="{{imagePath}}" class="photo-preview" src="{{imagePath}}" mode="aspectFit" bindtap="previewPhoto"/>
+      <button class="primary submit" bindtap="analyze" loading="{{busy}}" disabled="{{busy || !imagePath}}">{{assessmentId ? '重新检查（替换识别结果）' : '识别并辅助判题'}} →</button>
+      <view class="photo-tip">请拍清题目、附图及学生最终作答。一次最多处理 40 题；题目较多时建议分区域拍摄。</view>
+    </block>
+  </view>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+  <view wx:if="{{statusText}}" class="subtitle">{{statusText}}</view>
+  <block wx:if="{{questions.length}}">
+    <view class="tabs">
+      <view wx:for="{{filters}}" wx:key="*this" class="tab {{filter === item ? 'selected' : ''}}" data-value="{{item}}" bindtap="filter">{{item}}</view>
+    </view>
+    <view class="row" style="margin-bottom:24rpx">
+      <button class="secondary small" bindtap="selectMistakes" disabled="{{busy}}">只勾选疑似错题</button>
+      <text class="subtitle">已选 {{selectedCount}} · 已收录 {{savedCount}}</text>
+    </view>
+    <block wx:for="{{questions}}" wx:for-item="q" wx:key="index">
+      <view wx:if="{{q.visible}}" class="card assessment-card {{q.selected ? 'chosen' : ''}}">
+        <view class="row"><view class="panel-title">第 {{q.number}} 题</view><text class="judgment {{q.verdict}}">{{q.label}}</text></view>
+        <view class="photo-tip">模型自评可靠度 {{q.confidenceLabel}}% · {{q.bbox ? '保存时按题目区域裁图，请核对是否完整' : '区域不确定，将保留整页原图'}}</view>
+        <button class="ghost" bindtap="previewPhoto" disabled="{{!imagePath}}">查看整页原图，核对第 {{q.number}} 题</button>
+        <view class="feedback {{q.verdict === 'incorrect' ? 'wrong' : ''}}">{{q.reason || '请结合原图确认判断结果。'}}</view>
+        <view class="label">题目标题</view>
+        <input class="input" value="{{q.title}}" data-index="{{q.index}}" data-field="title" bindinput="edit" maxlength="100" disabled="{{busy || q.saved}}"/>
+        <view class="label">印刷题干（请校对，含选项与公共材料）</view>
+        <textarea class="textarea" value="{{q.content}}" data-index="{{q.index}}" data-field="content" bindinput="edit" maxlength="10000" disabled="{{busy || q.saved}}"/>
+        <view class="label">识别到的学生手写作答</view>
+        <textarea class="textarea short" value="{{q.studentAnswer}}" data-index="{{q.index}}" data-field="studentAnswer" bindinput="edit" maxlength="10000" disabled="{{busy || q.saved}}"/>
+        <view class="label">模型参考答案（不是标准答案，请确认）</view>
+        <textarea class="textarea short" value="{{q.answer}}" data-index="{{q.index}}" data-field="answer" bindinput="edit" maxlength="10000" disabled="{{busy || q.saved}}"/>
+        <view class="label">参考解析</view>
+        <textarea class="textarea short" value="{{q.explanation}}" data-index="{{q.index}}" data-field="explanation" bindinput="edit" maxlength="10000" disabled="{{busy || q.saved}}"/>
+        <view class="classification-grid">
+          <view><view class="label">年级</view><picker range="{{sheetGrades}}" value="{{q.gradeIndex}}" data-index="{{q.index}}" data-field="grade" bindchange="classification" disabled="{{busy || q.saved}}"><view class="form-picker">{{q.grade}} ⌄</view></picker></view>
+          <view><view class="label">学科</view><picker range="{{sheetSubjects}}" value="{{q.subjectIndex}}" data-index="{{q.index}}" data-field="subject" bindchange="classification" disabled="{{busy || q.saved}}"><view class="form-picker">{{q.subject}} ⌄</view></picker></view>
+          <view><view class="label">题型</view><picker range="{{questionTypes}}" value="{{q.typeIndex}}" data-index="{{q.index}}" data-field="questionType" bindchange="classification" disabled="{{busy || q.saved}}"><view class="form-picker">{{q.questionType}} ⌄</view></picker></view>
+        </view>
+        <view class="photo-tip">需要其他分类时可直接修改：</view>
+        <input class="input" value="{{q.grade}}" data-index="{{q.index}}" data-field="grade" bindinput="edit" maxlength="40" disabled="{{busy || q.saved}}"/>
+        <input class="input" value="{{q.subject}}" data-index="{{q.index}}" data-field="subject" bindinput="edit" maxlength="40" disabled="{{busy || q.saved}}"/>
+        <input class="input" value="{{q.questionType}}" data-index="{{q.index}}" data-field="questionType" bindinput="edit" maxlength="40" disabled="{{busy || q.saved}}"/>
+        <button class="{{q.selected ? 'primary' : 'secondary'}} submit" data-index="{{q.index}}" bindtap="toggle" disabled="{{busy || q.saved}}">{{q.saved ? '✓ 已收录' : q.selected ? '✓ 已确认是错题（点击取消）' : '确认是错题，加入待收录'}}</button>
+      </view>
+    </block>
+    <view class="batch-bar">
+      <button class="primary" bindtap="saveSelected" disabled="{{busy || !selectedCount}}" loading="{{busy}}">确认收录 {{selectedCount}} 道错题</button>
+      <button class="ghost" bindtap="notebook">查看错题本 →</button>
+    </view>
+  </block>
+  <view class="divider"><view class="divider-line"/><text class="divider-text">或手动录入一道错题</text><view class="divider-line"/></view>
+  <view class="form-columns">
+    <view><view class="label">学科</view><picker range="{{subjects}}" value="{{subjectIndex}}" data-field="subjectIndex" bindchange="pick"><view class="form-picker">{{subjects[subjectIndex]}} ⌄</view></picker></view>
+    <view><view class="label">难度</view><picker range="{{difficulties}}" value="{{difficultyIndex}}" data-field="difficultyIndex" bindchange="pick"><view class="form-picker">{{difficulties[difficultyIndex]}} ⌄</view></picker></view>
+  </view>
+  <view class="form-columns">
+    <view><view class="label">年级（跟随账户）</view><view class="form-picker static">{{accountGrade || '未分类'}}</view></view>
+    <view><view class="label">题型</view><picker range="{{questionTypes}}" value="{{typeIndex}}" data-field="typeIndex" bindchange="pick"><view class="form-picker">{{questionTypes[typeIndex]}} ⌄</view></picker></view>
+  </view>
+  <view class="row"><view class="label">自动分类</view><button class="secondary small" bindtap="autoClassifyTap" loading="{{classifying}}" disabled="{{classifying || busy}}">✦ 按题目内容自动识别学科 / 题型 / 难度</button></view>
+  <view class="label">自定义分类（选填，填写后优先使用）</view>
+  <input class="input" data-field="customSubject" bindinput="input" maxlength="40" placeholder="其他学科 / 专业课程"/>
+  <input class="input" data-field="customType" bindinput="input" maxlength="40" placeholder="其他题型"/>
+  <view class="label">题目标题 *</view>
+  <input class="input" value="{{title}}" data-field="title" bindinput="input" maxlength="100" placeholder="例如：二次函数的顶点与最值" placeholder-class="placeholder"/>
+  <view class="label">题目内容 *</view>
+  <textarea class="textarea" value="{{content}}" data-field="content" bindinput="input" maxlength="10000" placeholder="输入完整题干，选择题请写出选项…" placeholder-class="placeholder"/>
+  <view class="label">正确答案 *</view>
+  <input class="input" value="{{answer}}" data-field="answer" bindinput="input" maxlength="1000" placeholder="填写正确答案" placeholder-class="placeholder"/>
+  <view class="label">思路与解析（选填）</view>
+  <textarea class="textarea short" value="{{explanation}}" data-field="explanation" bindinput="input" maxlength="10000" placeholder="写下解题思路，帮未来的自己少走弯路" placeholder-class="placeholder"/>
+  <view class="label">知识点（选填）</view>
+  <input class="input" value="{{topic}}" data-field="topic" bindinput="input" maxlength="100" placeholder="例如：二次函数" placeholder-class="placeholder"/>
+  <view class="label">出错原因</view>
+  <picker range="{{reasons}}" value="{{reasonIndex}}" data-field="reasonIndex" bindchange="pick"><view class="form-picker">{{reasons[reasonIndex]}} ⌄</view></picker>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+  <button class="primary submit" bindtap="save" loading="{{busy}}" disabled="{{busy}}">＋ 保存到错题本</button>
+</view>

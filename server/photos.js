@@ -7,13 +7,14 @@ export function installPhotos(app, db, auth) {
   db.exec(`CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id), data BLOB NOT NULL, created_at INTEGER NOT NULL);`);
   if (!db.prepare('PRAGMA table_info(questions)').all().some(c => c.name === 'image_id')) db.exec('ALTER TABLE questions ADD COLUMN image_id TEXT');
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 0 } }).single('image');
+  const rateLimit = Math.max(1, Number(process.env.PHOTO_RATE_LIMIT || 40));
   const rates = new Map();
   function rate(req, res, next) {
     const now = Date.now();
     for (const [key, value] of rates) if (value.until < now) rates.delete(key);
     const value = rates.get(req.user.id) || { count: 0, until: now + 60000 };
     value.count++; rates.set(req.user.id, value);
-    if (value.count > 15) return res.status(429).json({ error: '图片操作过于频繁，请稍后重试' });
+    if (value.count > rateLimit) return res.status(429).json({ error: `图片操作过于频繁，请 1 分钟后重试（限 ${rateLimit} 次/分钟）` });
     next();
   }
   app.post('/api/photos', auth, rate, (req, res, next) => upload(req, res, error => {

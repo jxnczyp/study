@@ -3,3 +3,5 @@
 .quick-title{font-size:25rpx;font-weight:550;color:#536d46}
 .quick-email{font-size:21rpx;color:#a2ae93;margin-top:6rpx}
 .quick-button{flex-shrink:0;padding:14rpx 18rpx!important;font-size:21rpx!important}
+.picker-display{display:block}
+.grade-note{font-size:21rpx;color:#a2ae93;margin:-4rpx 0 14rpx;line-height:1.7}

@@ -8,12 +8,13 @@ import { seedQuestions, generateQuestions } from './questions.js';
 import { installPhotos } from './photos.js';
 import { catalog, classification, migrateClassification } from './classification.js';
 import { installAssessments } from './assessments.js';
+import { classifyQuestionText } from './vision.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 mkdirSync(process.env.DATA_DIR || path.join(root, 'data'), { recursive: true });
 const db = new DatabaseSync(path.join(process.env.DATA_DIR || path.join(root, 'data'), 'study.sqlite'));
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
-CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, password TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, password TEXT NOT NULL, grade TEXT DEFAULT '未分类', created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id), expires INTEGER);
 CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), subject TEXT, title TEXT, content TEXT, answer TEXT, options TEXT DEFAULT '[]', explanation TEXT, topic TEXT, difficulty TEXT, reason TEXT, mastered INTEGER DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS attempts (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), question_id INTEGER, correct INTEGER, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
@@ -28,7 +29,7 @@ function sessionToken(req) {
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `${req.protocol}://${req.headers.host}` && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(req.headers.origin)) return res.status(403).json({ error: '不允许的请求来源' });
   const token = sessionToken(req);
-  if (token) req.user = db.prepare('SELECT u.id, u.name, u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?').get(token, Date.now());
+  if (token) req.user = db.prepare('SELECT u.id, u.name, u.email, u.grade FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?').get(token, Date.now());
   next();
 });
 const auth = (req, res, next) => req.user ? next() : res.status(401).json({ error: '请先登录，保存你的学习进度' });
@@ -36,6 +37,24 @@ installPhotos(app, db, auth);
 migrateClassification(db);
 installAssessments(app, db, auth, insertQuestion);
 app.get('/api/catalog', (req, res) => res.json(catalog));
+app.patch('/api/profile', auth, (req, res) => {
+  let grade;
+  try { grade = classification(req.body.grade); } catch (e) { return res.status(400).json({ error: e.message }); }
+  if (!catalog.grades.includes(grade)) return res.status(400).json({ error: '请选择有效的年级' });
+  db.prepare('UPDATE users SET grade=? WHERE id=?').run(grade, req.user.id);
+  res.json({ ok: true, grade });
+});
+app.post('/api/classify', auth, async (req, res) => {
+  const content = String(req.body.content || '').trim();
+  if (!content) return res.status(400).json({ error: '请先填写题目内容，再自动识别分类' });
+  try {
+    const result = await classifyQuestionText({ title: String(req.body.title || '').slice(0, 200), content: content.slice(0, 6000), answer: String(req.body.answer || '').slice(0, 1000) });
+    res.json(result);
+  } catch (e) {
+    if (e.code === 'NOT_CONFIGURED') return res.status(503).json({ error: e.message });
+    res.status(502).json({ error: e.message || '自动识别失败，请手动选择分类' });
+  }
+});
 function insertQuestion(userId, q) {
   const result = db.prepare('INSERT INTO questions(user_id,subject,title,content,answer,options,explanation,topic,difficulty,reason,mastered) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(userId, q.subject, q.title, q.content, q.answer, JSON.stringify(q.options || []), q.explanation || '', q.topic || '未分类', q.difficulty || '中等', q.reason || '概念不清', q.mastered ? 1 : 0).lastInsertRowid;
   db.prepare('UPDATE questions SET grade=?,question_type=?,student_answer=?,judgment=?,judgment_reason=?,assessment_source=?,confidence=? WHERE id=?').run(classification(q.grade), classification(q.questionType), String(q.studentAnswer || '').slice(0,10000), q.judgment || '', q.judgmentReason || '', q.assessmentSource || 'manual', q.confidence ?? null, result);
@@ -52,6 +71,8 @@ app.post('/api/auth/:action', (req, res) => {
   if (rate && rate.until > Date.now() && rate.count >= 20) return res.status(429).json({ error: '尝试过于频繁，请 15 分钟后重试' });
   loginAttempts.set(key, { count: rate?.until > Date.now() ? rate.count + 1 : 1, until: rate?.until > Date.now() ? rate.until : Date.now() + 900000 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || password.length > 128) return res.status(400).json({ error: '请输入有效邮箱和 8–128 位密码' });
+  const grade = classification(req.body.grade);
+  if (!catalog.grades.includes(grade)) return res.status(400).json({ error: '请选择有效的年级' });
   let user;
   if (action === 'register') {
     const name = String(req.body.name || '').trim().slice(0, 30);
@@ -59,8 +80,8 @@ app.post('/api/auth/:action', (req, res) => {
     const salt = randomBytes(16).toString('hex');
     const hash = scryptSync(password, salt, 64).toString('hex');
     try {
-      const result = db.prepare('INSERT INTO users(name,email,password) VALUES(?,?,?)').run(name, email, `${salt}:${hash}`);
-      user = { id: Number(result.lastInsertRowid), name, email };
+      const result = db.prepare('INSERT INTO users(name,email,password,grade) VALUES(?,?,?,?)').run(name, email, `${salt}:${hash}`, grade);
+      user = { id: Number(result.lastInsertRowid), name, email, grade };
       seedQuestions.forEach(q => insertQuestion(user.id, q));
     } catch (e) {
       if (e.message.includes('UNIQUE')) return res.status(409).json({ error: '该邮箱已注册，请直接登录' });
@@ -71,7 +92,7 @@ app.post('/api/auth/:action', (req, res) => {
     const [salt, hash] = (found?.password || 'none:' + '0'.repeat(128)).split(':');
     const actual = scryptSync(password, salt, 64);
     if (!found || !timingSafeEqual(Buffer.from(hash, 'hex'), actual)) return res.status(401).json({ error: '邮箱或密码不正确' });
-    user = { id: found.id, name: found.name, email: found.email };
+    user = { id: found.id, name: found.name, email: found.email, grade: found.grade || '未分类' };
   }
   const token = randomBytes(32).toString('hex');
   db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(token, user.id, Date.now() + 30 * 86400000);
@@ -91,6 +112,8 @@ app.get('/api/state', (req, res) => {
 app.post('/api/questions', auth, (req, res) => {
   const q = req.body;
   try { q.subject = classification(q.subject, '其他'); q.grade = classification(q.grade); q.questionType = classification(q.questionType); } catch(e) { return res.status(400).json({ error: e.message }); }
+  // 年级跟随账户：客户端未指定（或未分类）时使用账户年级
+  if (!q.grade || q.grade === '未分类') q.grade = req.user.grade || '未分类';
   if (!q.subject || !String(q.content || '').trim() || !String(q.answer || '').trim()) return res.status(400).json({ error: '请填写学科、题目和正确答案' });
   if ([q.content, q.answer, q.explanation, q.title].some(v => String(v || '').length > 10000)) return res.status(400).json({ error: '单个字段不能超过 10000 字' });
   q.title = String(q.title || q.content.slice(0, 24)).trim();

@@ -1,12 +1,27 @@
 const { loadState, request, clearSession, toast } = require('../../utils/api');
-const { summarize } = require('../../utils/study');
+const { summarize, grades } = require('../../utils/study');
 Page({
-  data: { user: null, initial: '知', stats: {}, loading: true, error: '', exporting: false, loggingOut: false },
+  data: { user: null, initial: '知', stats: {}, loading: true, error: '', exporting: false, loggingOut: false, grades, gradeIndex: 0, savingGrade: false },
   onShow() { this.refresh(); },
   async onPullDownRefresh() { await this.refresh(); wx.stopPullDownRefresh(); },
   async refresh() {
-    try { const state = await loadState(); this.setData({ user: state.user, initial: state.user ? state.user.name.slice(0, 1) : '知', stats: summarize(state), loading: false, error: '' }); }
+    try {
+      const state = await loadState();
+      this.setData({ user: state.user, initial: state.user ? state.user.name.slice(0, 1) : '知', stats: summarize(state), loading: false, error: '', gradeIndex: Math.max(0, grades.indexOf(state.user?.grade)) });
+    }
     catch(e) { this.setData({ loading: false, error: e.message }); }
+  },
+  async pickGrade(e) {
+    const gradeIndex = Number(e.detail.value);
+    const grade = grades[gradeIndex];
+    this.setData({ gradeIndex, savingGrade: true });
+    try {
+      await request('/profile', { grade }, 'PATCH');
+      const user = { ...this.data.user, grade };
+      getApp().globalData.user = user; wx.setStorageSync('shizhi_user', user);
+      this.setData({ user, savingGrade: false });
+      toast('年级已更新，新收录的错题将使用该年级');
+    } catch (err) { toast(err); this.setData({ savingGrade: false }); }
   },
   login() { if (!this.data.user) wx.navigateTo({ url: '/pages/login/index' }); },
   logout() {

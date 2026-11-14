@@ -9,7 +9,6 @@ Page({
     try { const state = await loadState(); this.setData({ user: state.user, stats: summarize(state), recent: state.questions.slice(0, 4), loading: false }); }
     catch (e) { this.setData({ loading: false, error: e.message }); }
   },
-  reviewSheet() { if (requireLogin()) wx.navigateTo({ url: '/pages/review/index' }); },
   add() { if (requireLogin()) wx.navigateTo({ url: '/pages/add/index' }); },
   all() { wx.switchTab({ url: '/pages/mistakes/index' }); },
   generate() { wx.switchTab({ url: '/pages/generate/index' }); },

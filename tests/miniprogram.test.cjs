@@ -50,7 +50,7 @@ test('login page supports saved-session entry and remembers the last account wit
   const store = new Map([['shizhi_token', 'token'], ['shizhi_user', { name: '小知', email: 'learner@example.com' }], ['shizhi_last_email', 'learner@example.com']]);
   const app = { globalData: {} }; let loaded = 0, returned = 0;
   const wx = { getStorageSync: key => store.get(key), navigateBack: () => returned++ };
-  const p = page('pages/login/index.js', { '../../utils/api': { loadState: async () => { loaded++; return { user: { name: '小知' } }; }, toast() {}, request() {} } }, app, wx);
+  const p = page('pages/login/index.js', { '../../utils/api': { loadState: async () => { loaded++; return { user: { name: '小知' } }; }, toast() {}, request() {} }, '../../utils/study': load('utils/study.js') }, app, wx);
   p.onLoad(); assert.equal(p.data.canQuickEnter, true); assert.equal(p.data.quickUser.email, 'learner@example.com');
   await p.quickLogin(); assert.equal(loaded, 1); assert.equal(returned, 1);
 
@@ -62,7 +62,7 @@ test('login page supports saved-session entry and remembers the last account wit
   const signedIn = page('pages/login/index.js', { '../../utils/api': {
     request: async () => ({ token: 'new-token', user: { name: '小知', email: 'learner@example.com' } }),
     loadState: async () => ({ user: { name: '小知' } }), toast() {}
-  } }, app, { ...wx, setStorageSync: (key, value) => store.set(key, value), navigateBack: () => returned++ });
+  }, '../../utils/study': load('utils/study.js') }, app, { ...wx, setStorageSync: (key, value) => store.set(key, value), navigateBack: () => returned++ });
   signedIn.setData({ email: 'learner@example.com', password: 'correct-horse' });
   await signedIn.submit();
   assert.equal(store.get('shizhi_last_email'), 'learner@example.com');
@@ -91,46 +91,21 @@ test('notebook combines subject, mastery and keyword filters', () => {
   p.setData({ status: 2 }); p.filter(); assert.equal(p.data.visible.length, 0);
 });
 
-test('photo intake uploads before model recognition, fills content and saves the image reference', async () => {
-  const calls = []; let saved;
+test('manual entry auto-classifies untouched fields and saves without an image', async () => {
+  let saved; let back = 0;
   const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
-    requireLogin: () => true, toast: () => {}, uploadPhoto: async file => { calls.push(file); return { imageId: 'photo-1' }; },
-    request: async (url, data) => { calls.push(url); if (url.includes('/recognize')) return { text: '3x + 7 = 22', title: '解方程' }; saved = data; }
-  } }, { globalData: {} }, { compressImage: options => options.success({ tempFilePath: '/compressed.jpg' }), showModal: options => options.success({ confirm: true }), navigateBack() {} });
-  p.setData({ imagePath: '/camera.jpg' });
-  await p.processPhoto();
-  assert.equal(calls[0], '/compressed.jpg'); assert.equal(calls[1], '/photos/photo-1/recognize');
-  assert.equal(p.data.imageId, 'photo-1'); assert.equal(p.data.content, '3x + 7 = 22'); assert.equal(p.data.title, '解方程');
-  assert.equal(p.data.recognizing, false); assert.equal(p.data.uploading, false);
-  p.setData({ answer: '5' }); await p.save(); assert.equal(saved.imageId, 'photo-1');
-});
-test('model recognition failure retains uploaded photo and allows manual entry without reupload', async () => {
-  let uploads = 0; let saved;
-  const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
-    requireLogin: () => true, toast: () => {}, uploadPhoto: async () => { uploads++; return { imageId: 'photo-2' }; },
-    request: async (url, data) => { if (url.includes('/recognize')) throw new Error('识别失败'); saved = data; }
-  } }, { globalData: {} }, { compressImage: options => options.fail(), showModal: options => options.success({ confirm: true }), navigateBack() {} });
-  p.setData({ imagePath: '/camera.jpg', title: '已有标题', content: '手动题干', answer: '2' });
-  await p.processPhoto(); assert.equal(p.data.imageId, 'photo-2'); assert.equal(p.data.content, '手动题干');
-  await p.processPhoto(); assert.equal(uploads, 1); assert.equal(p.data.error, '识别失败');
-  await p.save(); assert.equal(saved.imageId, 'photo-2'); assert.equal(saved.content, '手动题干');
-});
-test('recognizing never overwrites existing text without confirmation', async () => {
-  const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
-    requireLogin: () => true, request: async () => ({ text: '新题干', title: '新标题' })
-  } }, { globalData: {} }, { showModal: options => options.success({ confirm: false }) });
-  p.setData({ imageId: 'photo-3', content: '原有题干', title: '原有标题', answer: '原答案' });
-  await p.recognize(); assert.equal(p.data.content, '原有题干'); assert.equal(p.data.title, '原有标题'); assert.equal(p.data.answer, '原答案');
-});
-test('upload failure blocks save and clearing photo preserves typed content', async () => {
-  let saved = false;
-  const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
-    requireLogin: () => true, uploadPhoto: async () => { throw new Error('上传失败'); }, request: async () => { saved = true; }, toast: () => {}
-  } }, { globalData: {} }, { compressImage: options => options.fail(), showModal: options => options.success({ confirm: true }), navigateBack() {} });
-  p.setData({ imagePath: '/camera.jpg', title: '题目', content: '手动题干', answer: '2' });
-  await p.processPhoto(); await p.save(); assert.equal(saved, false); assert.equal(p.data.imageId, '');
-  p.removePhoto(); assert.equal(p.data.imagePath, ''); assert.equal(p.data.content, '手动题干');
-  await p.save(); assert.equal(saved, true);
+    requireLogin: () => true, toast: () => {},
+    request: async (url, data) => {
+      if (url === '/classify') return { subject: '数学', difficulty: '挑战', questionType: '计算题', topic: '一元一次方程' };
+      saved = data;
+    }
+  } }, { globalData: {} }, { navigateBack: () => back++ });
+  await p.save(); assert.equal(saved, undefined);
+  p.setData({ title: '解方程', content: '已知 2x + 6 = 14，求 x。', answer: 'x = 4' });
+  await p.save();
+  assert.equal(back, 1);
+  assert.equal(saved.title, '解方程'); assert.equal('grade' in saved, false); assert.equal('imageId' in saved, false);
+  assert.equal(p.data.typeIndex, 5); assert.equal(p.data.difficultyIndex, 2); assert.equal(p.data.topic, '一元一次方程');
 });
 test('photo uploads and downloads authenticate and surface server validation errors', async () => {
   const store = new Map([['shizhi_token', 'photo-token']]); let upload, download;
@@ -157,7 +132,7 @@ test('notebook intersects grade, custom subject and question type filters', () =
 });
 test('whole-page review selects only suspected mistakes and imports confirmed selection', async () => {
   const sent = [];
-  const p = page('pages/review/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': { requireLogin: () => true, toast() {}, request: async (url, body) => { sent.push({ url, body }); return { ids: [1] }; } } }, { globalData: {} }, { showModal: o => o.success({ confirm: true }) });
+  const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': { requireLogin: () => true, toast() {}, request: async (url, body) => { sent.push({ url, body }); return { ids: [1] }; } } }, { globalData: {} }, { showModal: o => o.success({ confirm: true }) });
   p.setData({ assessmentId: 'a1', questions: [
     { index: 0, verdict: 'incorrect', grade: '小学一年级', subject: '数学', content: '1+1', answer: '2', selected: false },
     { index: 1, verdict: 'correct', grade: '小学一年级', subject: '数学', content: '1+1', answer: '2', selected: false },
@@ -169,15 +144,15 @@ test('whole-page review selects only suspected mistakes and imports confirmed se
 });
 test('whole-page results render every recognized question and link each to its original image', async () => {
   const recognized = [0, 1, 2].map(i => ({ number: String(i + 1), title: `题目${i + 1}`, content: `题干${i + 1}`, studentAnswer: '', answer: '2', explanation: '', grade: '小学一年级', subject: '数学', questionType: '计算题', topic: '', verdict: 'uncertain', reason: '', confidence: .9, bbox: null }));
-  const p = page('pages/review/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
+  const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
     requireLogin: () => true, toast() {}, uploadPhoto: async () => ({ imageId: 'page-photo' }),
-    request: async () => ({ id: 'assessment-1', questions: recognized })
+    request: async (url) => url === '/capabilities' ? { visualAssessment: true } : { id: 'assessment-1', questions: recognized }
   } }, { globalData: {} }, { showModal: o => o.success({ confirm: true }), compressImage: o => o.success({ tempFilePath: '/page.jpg' }) });
   p.setData({ enabled: true, imagePath: '/page.jpg' });
   await p.analyze();
   assert.equal(p.data.questions.length, 3);
   assert.deepEqual(p.data.questions.map(q => q.content), ['题干1', '题干2', '题干3']);
-  const resultsTemplate = read('pages/review/index.wxml');
+  const resultsTemplate = read('pages/add/index.wxml');
   assert.match(resultsTemplate, /wx:for="\{\{questions\}\}"/);
   assert.match(resultsTemplate, /查看整页原图，核对第/);
   const detailTemplate = read('pages/detail/index.wxml');

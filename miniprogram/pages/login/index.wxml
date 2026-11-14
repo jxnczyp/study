@@ -16,6 +16,9 @@
     <block wx:if="{{register}}">
       <view class="label">你的昵称</view>
       <input class="input" placeholder="怎么称呼你？" placeholder-class="placeholder" value="{{name}}" data-field="name" bindinput="input" maxlength="30"/>
+      <view class="label">你的年级</view>
+      <picker range="{{grades}}" value="{{gradeIndex}}" bindchange="pickGrade"><view class="input picker-display">{{grades[gradeIndex]}} ⌄</view></picker>
+      <view class="grade-note">收录错题时会自动使用这个年级，随时可以在「我的」页修改。</view>
     </block>
     <view class="label">邮箱地址</view>
     <input class="input" type="text" placeholder="hello@example.com" placeholder-class="placeholder" value="{{email}}" data-field="email" bindinput="input" maxlength="254"/>

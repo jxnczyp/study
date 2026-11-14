@@ -7,8 +7,7 @@
     "pages/login/index",
     "pages/add/index",
     "pages/detail/index",
-    "pages/practice/index",
-    "pages/review/index"
+    "pages/practice/index"
   ],
   "window": {
     "navigationBarTitleText": "拾知 · 错题学习",

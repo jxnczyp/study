@@ -23,6 +23,10 @@ before(async () => {
       res.setHeader('Content-Type', 'application/json');
       return res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ title: '方程练习', content: '解方程：3x + 7 = 22。\nFind the value of x.' }) } }] }));
     }
+    if (typeof body.messages?.[0]?.content === 'string' && body.messages[0].content.startsWith('你是错题本自动分类助手')) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ subject: '数学', difficulty: '基础', questionType: '计算题', topic: '一元一次方程' }) } }] }));
+    }
     const q = { number: '1', title: '加法练习', content: '1 + 1 = ?', studentAnswer: '3', answer: '2', explanation: '一加一等于二。', grade: '小学一年级', subject: '数学', questionType: '计算题', topic: '加法', verdict: 'incorrect', reason: '计算错误', confidence: .96, bbox: { x: .1, y: .1, width: .7, height: .5 } };
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ questions: [q, { ...q, number: '2', verdict: 'correct', studentAnswer: '2' }, { ...q, number: '3', verdict: 'incorrect', confidence: .5, bbox: null }] }) } }] }));
@@ -149,6 +153,23 @@ test('classification supports any grade, course and question type without losing
   assert.equal(qs[1].grade, '未分类');
   assert.equal((await request('/questions', { ...q, grade: '超'.repeat(41) }, user.cookie)).status, 400);
   assert.equal((await request('/catalog')).data.grades.includes('小学一年级'), true);
+});
+
+test('questions follow account grade and text classification auto-fills fields', async () => {
+  const user = await request('/auth/register', { name: '自动分类用户', email: 'autoclass@example.com', password: 'study12345', grade: '初中二年级' });
+  assert.equal(user.status, 200); assert.equal(user.data.user.grade, '初中二年级');
+  assert.equal((await request('/profile', { grade: '不存在的年级' }, user.cookie, 'PATCH')).status, 400);
+  assert.equal((await request('/profile', { grade: '高中一年级' }, user.cookie, 'PATCH')).status, 200);
+  assert.equal((await request('/state', undefined, user.cookie)).data.user.grade, '高中一年级');
+  const created = await request('/questions', { subject: '数学', title: '年级跟随账户', content: '解方程 2x = 6，求 x。', answer: 'x = 3' }, user.cookie);
+  assert.equal(created.status, 200);
+  const saved = (await request('/state', undefined, user.cookie)).data.questions[0];
+  assert.equal(saved.grade, '高中一年级'); assert.equal(saved.question_type, '未分类');
+  const classified = await request('/classify', { title: '解方程', content: '已知 2x = 6，求 x 的值。', answer: 'x = 3' }, user.cookie);
+  assert.equal(classified.status, 200);
+  assert.deepEqual(classified.data, { subject: '数学', difficulty: '基础', questionType: '计算题', topic: '一元一次方程' });
+  assert.equal((await request('/classify', { title: 'x' }, user.cookie)).status, 400);
+  assert.equal((await request('/classify', { content: 'test' })).status, 401);
 });
 
 test('whole-page assessment imports only selected items, crops images and is idempotent', async () => {

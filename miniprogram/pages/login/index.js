@@ -1,6 +1,7 @@
 const { request, loadState, toast } = require('../../utils/api');
+const { grades } = require('../../utils/study');
 Page({
-  data: { register: false, name: '', email: '', password: '', showPassword: false, busy: false, error: '', quickUser: null, canQuickEnter: false, focusPassword: false },
+  data: { register: false, name: '', email: '', password: '', showPassword: false, busy: false, error: '', quickUser: null, canQuickEnter: false, focusPassword: false, grades, gradeIndex: 0 },
   onLoad() { this.refreshQuickUser(); },
   refreshQuickUser() {
     const token = wx.getStorageSync('shizhi_token');
@@ -10,6 +11,7 @@ Page({
   },
   toggleMode() { this.setData({ register: !this.data.register, error: '' }); },
   input(e) { this.setData({ [e.currentTarget.dataset.field]: e.detail.value }); },
+  pickGrade(e) { this.setData({ gradeIndex: Number(e.detail.value) }); },
   togglePassword() { this.setData({ showPassword: !this.data.showPassword }); },
   async quickLogin() {
     if (this.data.busy || !this.data.quickUser) return;
@@ -35,7 +37,8 @@ Page({
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || password.length < 8 || password.length > 128) return this.setData({ error: '请输入有效邮箱和 8–128 位密码' });
     this.setData({ busy: true, error: '' });
     try {
-      const result = await request('/auth/' + (register ? 'register' : 'login'), { name, email, password });
+      const payload = register ? { name, email, password, grade: grades[this.data.gradeIndex] } : { email, password };
+      const result = await request('/auth/' + (register ? 'register' : 'login'), payload);
       if (!result.token) throw new Error('登录失败，服务端未返回会话凭证');
       wx.setStorageSync('shizhi_token', result.token); wx.setStorageSync('shizhi_user', result.user);
       wx.setStorageSync('shizhi_last_email', result.user.email);

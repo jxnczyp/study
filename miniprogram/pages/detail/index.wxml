@@ -17,10 +17,11 @@
     <view wx:for="{{question.options}}" wx:key="index" class="option"><text class="option-letter">{{index + 1}}</text>{{item}}</view>
     <view wx:if="{{question.student_answer}}" class="answer-box"><view class="answer-label">学生作答（收录时）</view><view class="answer-text">{{question.student_answer}}</view></view>
     <view wx:if="{{question.assessment_source === 'vision'}}" class="tip">本题由视觉模型辅助检查后经用户确认收录。参考答案经过用户核对，不是官方标准答案。<view>{{question.judgment_reason}}</view></view>
-    <view class="answer-box">
+    <view wx:if="{{showAnswer}}" class="answer-box">
       <view class="answer-label">✓ 正确答案</view><view class="answer-text">{{question.answer}}</view>
       <view class="answer-label" style="margin-top:28rpx">解题思路</view><view class="answer-text">{{question.explanation || '暂未添加解析，复习时记得回顾相关知识点。'}}</view>
     </view>
+    <button wx:else class="secondary reveal-answer" bindtap="revealAnswer">👁 查看正确答案与解析</button>
     <view class="row start" style="margin-bottom:35rpx"><text class="subtitle">出错原因</text><text class="tag orange">{{question.reason}}</text><text class="status {{question.mastered ? 'done' : ''}}">{{question.mastered ? '已掌握' : '待巩固'}}</text></view>
     <view class="actions"><button class="primary" bindtap="review">再练一次</button><button class="secondary" loading="{{busy}}" disabled="{{busy}}" bindtap="toggleMastered">{{question.mastered ? '设为待巩固' : '标记已掌握'}}</button></view>
     <button wx:if="{{loggedIn}}" class="danger submit" disabled="{{busy}}" bindtap="remove">删除错题</button>
