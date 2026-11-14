@@ -29,6 +29,7 @@ test('native project routes, page handlers, JSON and PNG assets are complete', (
     const template = read(route + '.wxml');
     const script = read(route + '.js');
     for (const match of template.matchAll(/(?:bind(?:tap|input|change|confirm)|catchtap)="([A-Za-z_][A-Za-z_0-9]*)"/g)) assert.ok(new RegExp('(?:async\\s+)?' + match[1] + '\\s*\\(').test(script), route + ': missing handler ' + match[1]);
+    for (const match of template.matchAll(/wx:(?:if|elif|for)="([^"]+)"/g)) assert.ok(match[1].startsWith('{{') && match[1].endsWith('}}'), route + ': directive must be data-bound ' + match[0]);
   }
   for (const tab of config.tabBar.list) {
     assert.ok(config.pages.includes(tab.pagePath));
