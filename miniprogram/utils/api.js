@@ -45,6 +45,20 @@ function downloadPhoto(imageId) {
     });
   });
 }
+function cropPhoto(imageId, bbox) {
+  const query = `x=${bbox.x}&y=${bbox.y}&w=${bbox.width}&h=${bbox.height}`;
+  return new Promise((resolve, reject) => {
+    wx.downloadFile({
+      url: apiBase + '/photos/' + encodeURIComponent(imageId) + '/crop?' + query, timeout: 30000,
+      header: { Authorization: 'Bearer ' + wx.getStorageSync('shizhi_token') },
+      success(res) {
+        if (res.statusCode === 200) resolve(res.tempFilePath);
+        else { if (res.statusCode === 401) clearSession(); reject(new Error('题目配图加载失败，请重试')); }
+      },
+      fail() { reject(new Error('题目配图加载失败，请检查网络')); }
+    });
+  });
+}
 function clearSession() {
   wx.removeStorageSync('shizhi_token'); wx.removeStorageSync('shizhi_user');
   getApp().globalData.user = null; getApp().globalData.state = null; getApp().globalData.practice = null;
@@ -66,4 +80,4 @@ function startPractice(questions, mode) {
   getApp().globalData.practice = { questions, mode };
   wx.navigateTo({ url: '/pages/practice/index' });
 }
-module.exports = { request, uploadPhoto, downloadPhoto, loadState, requireLogin, clearSession, toast, startPractice };
+module.exports = { request, uploadPhoto, downloadPhoto, cropPhoto, loadState, requireLogin, clearSession, toast, startPractice };

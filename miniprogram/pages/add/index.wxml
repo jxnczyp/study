@@ -34,13 +34,16 @@
     <block wx:for="{{questions}}" wx:for-item="q" wx:key="index">
       <view wx:if="{{q.visible}}" class="card assessment-card {{q.selected ? 'chosen' : ''}}">
         <view class="row"><view class="panel-title">第 {{q.number}} 题</view><text class="judgment {{q.verdict}}">{{q.label}}</text></view>
-        <view class="photo-tip">模型自评可靠度 {{q.confidenceLabel}}% · {{q.bbox ? '保存时按题目区域裁图，请核对是否完整' : '区域不确定，将保留整页原图'}}</view>
+        <view class="photo-tip">模型自评可靠度 {{q.confidenceLabel}}% · {{q.bbox ? '下方为裁出的题目配图，请核对是否完整' : '区域不确定，将保留整页原图'}}</view>
+        <view wx:if="{{q.hasFigure}}" class="photo-status">识别到的题目配图：{{q.figureDescription}}（请对照下方裁图核对，图示说明可能有误）</view>
         <button class="ghost" bindtap="previewPhoto" disabled="{{!imagePath}}">查看整页原图，核对第 {{q.number}} 题</button>
         <view class="feedback {{q.verdict === 'incorrect' ? 'wrong' : ''}}">{{q.reason || '请结合原图确认判断结果。'}}</view>
         <view class="label">题目标题</view>
         <input class="input" value="{{q.title}}" data-index="{{q.index}}" data-field="title" bindinput="edit" maxlength="100" disabled="{{busy || q.saved}}"/>
         <view class="label">印刷题干（请校对，含选项与公共材料）</view>
         <textarea class="textarea" value="{{q.content}}" data-index="{{q.index}}" data-field="content" bindinput="edit" maxlength="10000" disabled="{{busy || q.saved}}"/>
+        <image wx:if="{{q.figurePath}}" class="photo-preview" src="{{q.figurePath}}" mode="aspectFit" bindtap="previewFigure" data-index="{{q.index}}"/>
+        <view wx:if="{{q.figurePath}}" class="photo-tip">↑ 题目配图（点按可放大）</view>
         <view class="label">识别到的学生手写作答</view>
         <textarea class="textarea short" value="{{q.studentAnswer}}" data-index="{{q.index}}" data-field="studentAnswer" bindinput="edit" maxlength="10000" disabled="{{busy || q.saved}}"/>
         <view class="label">模型参考答案（不是标准答案，请确认）</view>

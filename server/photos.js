@@ -1,7 +1,7 @@
 import multer from 'multer';
 import sharp from 'sharp';
 import { randomBytes } from 'node:crypto';
-import { recognizeQuestionImage, visionConfigured } from './vision.js';
+import { recognizeQuestionImage, visionConfigured, validBbox, expandBbox } from './vision.js';
 
 export function installPhotos(app, db, auth) {
   db.exec(`CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id), data BLOB NOT NULL, created_at INTEGER NOT NULL);`);
@@ -27,7 +27,8 @@ export function installPhotos(app, db, auth) {
       const source = sharp(req.file.buffer, { limitInputPixels: 40000000, animated: false });
       const metadata = await source.metadata();
       if (!['jpeg', 'png', 'webp'].includes(metadata.format)) throw new Error('format');
-      data = await source.rotate().resize({ width: 2000, height: 2400, fit: 'inside', withoutEnlargement: true }).flatten({ background: '#fff' }).jpeg({ quality: 88 }).toBuffer();
+      // 电路图、几何图等细线图对分辨率和色度抽样敏感，保留更高上限并使用 4:4:4。
+      data = await source.rotate().resize({ width: 2560, height: 3200, fit: 'inside', withoutEnlargement: true }).flatten({ background: '#fff' }).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
     } catch { return res.status(400).json({ error: '图片无法读取，请选择清晰的 JPG、PNG 或 WebP 图片' }); }
     // 清理一天前未关联错题的草稿图片；已收录的图片始终保留。
     db.prepare('DELETE FROM photos WHERE created_at<? AND id NOT IN (SELECT image_id FROM questions WHERE image_id IS NOT NULL UNION SELECT source_image_id FROM questions WHERE source_image_id IS NOT NULL)').run(Date.now() - 86400000);
@@ -39,6 +40,21 @@ export function installPhotos(app, db, auth) {
     const photo = db.prepare('SELECT data FROM photos WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
     if (!photo) return res.status(404).json({ error: '图片不存在' });
     res.set('Cache-Control', 'private, no-store').type('jpeg').send(Buffer.from(photo.data));
+  });
+  // 识别结果页按题目 bbox 即时取配图，供用户收录前核对；只读，不写入 photos。
+  app.get('/api/photos/:id/crop', auth, rate, async (req, res) => {
+    const bbox = expandBbox(validBbox({ x: Number(req.query.x), y: Number(req.query.y), width: Number(req.query.w), height: Number(req.query.h) }));
+    if (!bbox) return res.status(400).json({ error: '裁图区域无效' });
+    const photo = db.prepare('SELECT data FROM photos WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+    if (!photo) return res.status(404).json({ error: '图片不存在' });
+    try {
+      const buffer = Buffer.from(photo.data);
+      const { width, height } = await sharp(buffer).metadata();
+      const left = Math.min(width - 1, Math.floor(bbox.x * width));
+      const top = Math.min(height - 1, Math.floor(bbox.y * height));
+      const cropped = await sharp(buffer).extract({ left, top, width: Math.max(1, Math.min(width - left, Math.ceil(bbox.width * width))), height: Math.max(1, Math.min(height - top, Math.ceil(bbox.height * height))) }).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
+      res.set('Cache-Control', 'private, no-store').type('jpeg').send(cropped);
+    } catch { res.status(400).json({ error: '题目配图裁切失败，请查看整页原图' }); }
   });
   app.post('/api/photos/:id/recognize', auth, rate, async (req, res) => {
     const photo = db.prepare('SELECT data FROM photos WHERE id=? AND user_id=?').get(req.params.id, req.user.id);

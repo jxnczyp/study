@@ -21,13 +21,17 @@ before(async () => {
     if (body.messages?.[1]?.content?.[0]?.text === '请识别并转录这张题目图片中的内容。') {
       transcriptionCalls++;
       res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ title: '方程练习', content: '解方程：3x + 7 = 22。\nFind the value of x.' }) } }] }));
+      return res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ title: '方程练习', content: '解方程：3x + 7 = 22。\nFind the value of x.', figureDescription: '' }) } }] }));
+    }
+    if (body.messages?.[1]?.content?.[0]?.text === '请定位这张题目区域图中的图示位置。') {
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ figureBbox: { x: .2, y: .3, width: .5, height: .4 } }) } }] }));
     }
     if (typeof body.messages?.[0]?.content === 'string' && body.messages[0].content.startsWith('你是错题本自动分类助手')) {
       res.setHeader('Content-Type', 'application/json');
       return res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ subject: '数学', difficulty: '基础', questionType: '计算题', topic: '一元一次方程' }) } }] }));
     }
-    const q = { number: '1', title: '加法练习', content: '1 + 1 = ?', studentAnswer: '3', answer: '2', explanation: '一加一等于二。', grade: '小学一年级', subject: '数学', questionType: '计算题', topic: '加法', verdict: 'incorrect', reason: '计算错误', confidence: .96, bbox: { x: .1, y: .1, width: .7, height: .5 } };
+    const q = { number: '1', title: '串并联电路识别', content: '如图所示的电路图中，属于串联电路的是（  ）', figureDescription: '图a：电源、开关与两个灯泡串联；图b：两个灯泡并联后接电源。', figureBbox: { x: .55, y: .4, width: .4, height: .5 }, studentAnswer: '3', answer: '2', explanation: '一加一等于二。', grade: '小学一年级', subject: '数学', questionType: '计算题', topic: '加法', verdict: 'incorrect', reason: '计算错误', confidence: .96, bbox: { x: .1, y: .1, width: .7, height: .5 } };
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ questions: [q, { ...q, number: '2', verdict: 'correct', studentAnswer: '2' }, { ...q, number: '3', verdict: 'incorrect', confidence: .5, bbox: null }] }) } }] }));
   });
@@ -131,7 +135,7 @@ test('photo capture lifecycle: upload, third-party model recognition, ownership,
   assert.equal(original.headers.get('cache-control'), 'private, no-store');
   assert.equal((await request('/photos/' + id + '/recognize', {}, b.cookie)).status, 404);
   const recognized = await request('/photos/' + id + '/recognize', {}, a.cookie);
-  assert.equal(recognized.status, 200); assert.match(recognized.data.text, /22/); assert.match(recognized.data.text, /value/i); assert.equal(recognized.data.title, '方程练习'); assert.equal(transcriptionCalls, 1);
+  assert.equal(recognized.status, 200); assert.match(recognized.data.text, /22/); assert.match(recognized.data.text, /value/i); assert.equal(recognized.data.title, '方程练习'); assert.equal(recognized.data.hasFigure, false); assert.equal(transcriptionCalls, 1);
   const q = { subject: '数学', title: recognized.data.title, content: recognized.data.text, answer: '5', imageId: id };
   assert.equal((await request('/questions', q, b.cookie)).status, 400);
   const created = await request('/questions', q, a.cookie);
@@ -181,6 +185,19 @@ test('whole-page assessment imports only selected items, crops images and is ide
   const assessment = await request('/photos/' + photo.data.imageId + '/assess', { grade: '小学一年级', subject: '数学' }, user.cookie);
   assert.equal(assessment.status, 200); assert.equal(assessment.data.questions.length, 3);
   assert.equal(assessment.data.questions[2].verdict, 'uncertain');
+  assert.equal(assessment.data.questions[0].hasFigure, true);
+  assert.deepEqual(assessment.data.questions[0].figureBbox, { x: .216, y: .234, width: .39, height: .232 });
+  assert.deepEqual(assessment.data.questions[0].viewBbox, { x: .1, y: .1, width: .7, height: .5 });
+  assert.match(assessment.data.questions[0].content, /【题目配图】.*两个灯泡并联/);
+  const cropRoute = '/photos/' + photo.data.imageId + '/crop?x=0.1&y=0.1&w=0.7&h=0.5';
+  const preview = await fetch(base + cropRoute, { headers: { cookie: user.cookie } });
+  assert.equal(preview.status, 200); assert.match(preview.headers.get('content-type'), /image\/jpeg/);
+  assert.equal(preview.headers.get('cache-control'), 'private, no-store');
+  const previewMeta = await sharp(Buffer.from(await preview.arrayBuffer())).metadata();
+  assert.equal(previewMeta.width, 468); assert.equal(previewMeta.height, 464);
+  assert.equal((await fetch(base + '/photos/' + photo.data.imageId + '/crop?x=-1&y=0&w=0.5&h=0.5', { headers: { cookie: user.cookie } })).status, 400);
+  assert.equal((await fetch(base + cropRoute)).status, 401);
+  assert.equal((await fetch(base + cropRoute, { headers: { cookie: other.cookie } })).status, 404);
   assert.equal((await request('/state', undefined, user.cookie)).data.questions.length, 6);
   const route = '/assessments/' + assessment.data.id + '/import';
   assert.equal((await request(route, { confirmed: true, items: [{ index: 0 }] }, other.cookie)).status, 404);
@@ -193,10 +210,11 @@ test('whole-page assessment imports only selected items, crops images and is ide
   const state = (await request('/state', undefined, user.cookie)).data;
   assert.equal(state.questions.length, 7); const saved = state.questions[0];
   assert.equal(saved.grade, '小学二年级'); assert.equal(saved.question_type, '应用题'); assert.equal(saved.student_answer, '3'); assert.equal(saved.assessment_source, 'vision');
+  assert.match(saved.content, /【题目配图】.*两个灯泡并联/);
   assert.notEqual(saved.image_id, photo.data.imageId);
   assert.equal(saved.source_image_id, photo.data.imageId);
   const cropped = await fetch(base + '/photos/' + saved.image_id, { headers: { cookie: user.cookie } });
-  const metadata = await sharp(Buffer.from(await cropped.arrayBuffer())).metadata(); assert.equal(metadata.width, 420); assert.equal(metadata.height, 400);
+  const metadata = await sharp(Buffer.from(await cropped.arrayBuffer())).metadata(); assert.equal(metadata.width, 468); assert.equal(metadata.height, 464);
   assert.equal((await request('/attempts', { questionId: saved.id, answer: '二' }, user.cookie)).status, 400);
   assert.equal((await request('/attempts', { questionId: saved.id, answer: '二', selfAssessment: true }, user.cookie)).data.correct, true);
 });

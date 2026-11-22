@@ -1,4 +1,4 @@
-const { request, uploadPhoto, requireLogin, toast } = require('../../utils/api');
+const { request, uploadPhoto, cropPhoto, requireLogin, toast } = require('../../utils/api');
 const { subjects, grades, questionTypes, difficulties } = require('../../utils/study');
 const VERDICTS = { incorrect: '疑似错题', correct: '可能正确', uncertain: '待确认' };
 Page({
@@ -35,6 +35,18 @@ Page({
     } });
   },
   previewPhoto() { if (this.data.imagePath) wx.previewImage({ current: this.data.imagePath, urls: [this.data.imagePath] }); },
+  // 识别完成后自动裁出题图内联展示在题干下方：优先图示区域（两阶段定位后较准），否则回退整题并集区域，失败静默。
+  loadFigure(q) {
+    const bbox = q.figureBbox || q.viewBbox || q.bbox;
+    if (!bbox || !this.data.imageId || typeof cropPhoto !== 'function') return;
+    cropPhoto(this.data.imageId, bbox).then(path => {
+      if (!this.disposed) this.setData({ [`questions[${q.index}].figurePath`]: path });
+    }).catch(() => { });
+  },
+  previewFigure(e) {
+    const q = this.data.questions.find(item => item.index === Number(e.currentTarget.dataset.index));
+    if (q?.figurePath) wx.previewImage({ current: q.figurePath, urls: [q.figurePath] });
+  },
   async analyze() {
     if (this.data.busy || !this.data.enabled || !this.data.imagePath || !requireLogin()) return;
     this.setData({ busy: true, error: '', statusText: '正在上传并检查作业，通常需要一些时间…' });
@@ -50,8 +62,9 @@ Page({
       const allGrades = [...new Set([...this.data.sheetGrades, ...result.questions.map(q => q.grade)])];
       const allSubjects = [...new Set([...this.data.sheetSubjects, ...result.questions.map(q => q.subject)])];
       const allTypes = [...new Set([...questionTypes, ...result.questions.map(q => q.questionType)])];
-      const questions = result.questions.map((q, index) => ({ ...q, index, selected: false, saved: false, visible: true, label: VERDICTS[q.verdict], confidenceLabel: Math.round(q.confidence * 100), gradeIndex: allGrades.indexOf(q.grade), subjectIndex: allSubjects.indexOf(q.subject), typeIndex: allTypes.indexOf(q.questionType) }));
+      const questions = result.questions.map((q, index) => ({ ...q, index, selected: false, saved: false, visible: true, label: VERDICTS[q.verdict], confidenceLabel: Math.round(q.confidence * 100), figurePath: '', gradeIndex: allGrades.indexOf(q.grade), subjectIndex: allSubjects.indexOf(q.subject), typeIndex: allTypes.indexOf(q.questionType) }));
       this.setData({ assessmentId: result.id, questions, sheetGrades: allGrades, sheetSubjects: allSubjects, questionTypes: allTypes, selectedCount: 0, savedCount: 0, filter: '全部', statusText: questions.length ? `识别出 ${questions.length} 道题，请确认哪些是错题。` : '未识别到完整题目，请重拍或手动录入。' });
+      for (const q of questions) if (q.bbox) this.loadFigure(q);
     } catch(e) { if (!this.disposed) this.setData({ error: e.message }); }
     finally { if (!this.disposed) this.setData({ busy: false }); }
   },

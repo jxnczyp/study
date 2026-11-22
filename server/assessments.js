@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
-import { assessPhoto, visionConfigured } from './vision.js';
+import { assessPhoto, visionConfigured, expandBbox } from './vision.js';
 import { classification } from './classification.js';
 export function installAssessments(app, db, auth, insertQuestion) {
   db.exec(`CREATE TABLE IF NOT EXISTS assessments(id TEXT PRIMARY KEY,user_id INTEGER,photo_id TEXT,data TEXT,created_at INTEGER);
@@ -45,7 +45,7 @@ export function installAssessments(app, db, auth, insertQuestion) {
       for (const entry of prepared) {
         if (db.prepare('SELECT question_id FROM assessment_imports WHERE assessment_id=? AND item_index=?').get(assessment.id, entry.index)) continue;
         if (entry.source.bbox) {
-          const { width, height } = await sharp(Buffer.from(photo.data)).metadata(); const b = entry.source.bbox;
+          const { width, height } = await sharp(Buffer.from(photo.data)).metadata(); const b = expandBbox(entry.source.bbox);
           const left = Math.min(width - 1, Math.floor(b.x * width)); const top = Math.min(height - 1, Math.floor(b.y * height));
           entry.cropped = await sharp(Buffer.from(photo.data)).extract({ left, top, width: Math.max(1, Math.min(width - left, Math.ceil(b.width * width))), height: Math.max(1, Math.min(height - top, Math.ceil(b.height * height))) }).jpeg({ quality: 90 }).toBuffer();
         }

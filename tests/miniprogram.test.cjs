@@ -15,7 +15,12 @@ function load(file, mocks = {}) {
 function page(file, deps, app, wxOverrides = {}) {
   let definition;
   vm.runInNewContext(read(file), { Page: p => definition = p, require: name => deps[name], getApp: () => app, wx: { enableAlertBeforeUnload() {}, disableAlertBeforeUnload() {}, ...wxOverrides }, console });
-  definition.setData = function(data) { Object.assign(this.data, data); };
+  definition.setData = function(data) {
+    for (const [key, value] of Object.entries(data)) {
+      const path = /^(\w+)\[(\d+)\]\.(\w+)$/.exec(key);
+      if (path) { (this.data[path[1]][path[2]] ??= { })[path[3]] = value; } else this.data[key] = value;
+    }
+  };
   return definition;
 }
 test('native project routes, page handlers, JSON and PNG assets are complete', () => {
@@ -118,6 +123,9 @@ test('photo uploads and downloads authenticate and surface server validation err
   const api = load('utils/api.js', { wx, getApp: () => ({ globalData: {} }) });
   assert.equal((await api.uploadPhoto('/camera.jpg')).imageId, '123'); assert.equal(upload.name, 'image'); assert.equal(upload.header.Authorization, 'Bearer photo-token');
   assert.equal(await api.downloadPhoto('123'), '/local-photo.jpg'); assert.equal(download.header.Authorization, 'Bearer photo-token');
+  assert.equal(await api.cropPhoto('123', { x: .1, y: .2, width: .5, height: .3 }), '/local-photo.jpg');
+  assert.match(download.url, /\/photos\/123\/crop\?x=0\.1&y=0\.2&w=0\.5&h=0\.3$/);
+  assert.equal(download.header.Authorization, 'Bearer photo-token');
   wx.uploadFile = options => options.success({ statusCode: 400, data: JSON.stringify({ error: '图片太大' }) });
   await assert.rejects(api.uploadPhoto('/large.jpg'), /图片太大/);
 });
@@ -144,18 +152,29 @@ test('whole-page review selects only suspected mistakes and imports confirmed se
   assert.equal(p.data.questions[0].saved, true); assert.equal(p.data.questions[1].saved, undefined);
 });
 test('whole-page results render every recognized question and link each to its original image', async () => {
-  const recognized = [0, 1, 2].map(i => ({ number: String(i + 1), title: `题目${i + 1}`, content: `题干${i + 1}`, studentAnswer: '', answer: '2', explanation: '', grade: '小学一年级', subject: '数学', questionType: '计算题', topic: '', verdict: 'uncertain', reason: '', confidence: .9, bbox: null }));
+  const recognized = [0, 1, 2].map(i => ({ number: String(i + 1), title: `题目${i + 1}`, content: `题干${i + 1}`, studentAnswer: '', answer: '2', explanation: '', grade: '小学一年级', subject: '数学', questionType: '计算题', topic: '', verdict: 'uncertain', reason: '', confidence: .9, bbox: i === 0 ? { x: .1, y: .1, width: .5, height: .4 } : null, figureBbox: i === 0 ? { x: .55, y: .4, width: .4, height: .5 } : null, viewBbox: i === 0 ? { x: .1, y: .1, width: .85, height: .8 } : null, hasFigure: i === 0, figureDescription: i === 0 ? '图a：电源与两个灯泡串联。' : '' }));
+  const cropped = [];
   const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
     requireLogin: () => true, toast() {}, uploadPhoto: async () => ({ imageId: 'page-photo' }),
+    cropPhoto: async (imageId, bbox) => { cropped.push({ imageId, bbox }); return '/crop-' + imageId + '-' + bbox.x + '.jpg'; },
     request: async (url) => url === '/capabilities' ? { visualAssessment: true } : { id: 'assessment-1', questions: recognized }
   } }, { globalData: {} }, { showModal: o => o.success({ confirm: true }), compressImage: o => o.success({ tempFilePath: '/page.jpg' }) });
   p.setData({ enabled: true, imagePath: '/page.jpg' });
   await p.analyze();
+  await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(p.data.questions.length, 3);
   assert.deepEqual(p.data.questions.map(q => q.content), ['题干1', '题干2', '题干3']);
+  assert.equal(p.data.questions[0].hasFigure, true);
+  assert.match(p.data.questions[0].figureDescription, /两个灯泡串联/);
+  assert.deepEqual(cropped, [{ imageId: 'page-photo', bbox: { x: .55, y: .4, width: .4, height: .5 } }]);
+  assert.equal(p.data.questions[0].figurePath, '/crop-page-photo-0.55.jpg');
+  assert.equal(p.data.questions[1].figurePath, '');
   const resultsTemplate = read('pages/add/index.wxml');
   assert.match(resultsTemplate, /wx:for="\{\{questions\}\}"/);
   assert.match(resultsTemplate, /查看整页原图，核对第/);
+  assert.match(resultsTemplate, /识别到的题目配图/);
+  assert.match(resultsTemplate, /q\.hasFigure/);
+  assert.match(resultsTemplate, /src="\{\{q\.figurePath\}\}"/);
   const detailTemplate = read('pages/detail/index.wxml');
   assert.match(detailTemplate, /wx:if="\{\{question\.image_id\}\}"/);
   assert.match(detailTemplate, /src="\{\{imagePath\}\}"/);
