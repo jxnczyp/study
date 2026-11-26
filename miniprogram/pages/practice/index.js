@@ -14,7 +14,15 @@ Page({
   showQuestion(index) {
     this.pendingSelfAssessment = undefined;
     const question = this.questions[index];
-    this.setData({ index, question, progress: Math.round((index + 1) / this.questions.length * 100), answer: '', submitted: false, result: null, referenceVisible: false, options: (question.options || []).map((value, i) => ({ value, letter: String.fromCharCode(65 + i), selected: false, correct: false, incorrect: false })) });
+    this.setData({ index, question, progress: Math.round((index + 1) / this.questions.length * 100), answer: '', submitted: false, result: null, referenceVisible: false, photoPath: '', imageLoading: !!question.image_id, options: (question.options || []).map((value, i) => ({ value, letter: String.fromCharCode(65 + i), selected: false, correct: false, incorrect: false })) });
+    this.loadPhoto(question);
+  },
+  // 带原图的错题自动下载题图内嵌展示；生成的题无图，失败静默可稍后点按重试。
+  loadPhoto(question) {
+    if (!question.image_id || typeof downloadPhoto !== 'function') return;
+    downloadPhoto(question.image_id).then(path => {
+      if (this.data.question && this.data.question.id === question.id) this.setData({ photoPath: path, imageLoading: false });
+    }).catch(() => { if (this.data.question && this.data.question.id === question.id) this.setData({ imageLoading: false }); });
   },
   choose(e) {
     if (this.data.submitted || this.data.busy) return;
@@ -22,11 +30,18 @@ Page({
     this.setData({ answer, options: this.data.options.map(o => ({ ...o, selected: o.value === answer })) });
   },
   input(e) { if (!this.data.submitted && !this.data.busy) this.setData({ answer: e.detail.value }); },
+  // 点按题图放大核对；自动加载失败时可点按重试并放大。
   async viewPhoto() {
-    if (this.data.imageLoading || !this.data.question.image_id) return;
+    const q = this.data.question;
+    if (!q || !q.image_id) return;
+    if (this.data.photoPath) return wx.previewImage({ current: this.data.photoPath, urls: [this.data.photoPath] });
+    if (this.data.imageLoading || typeof downloadPhoto !== 'function') return;
     this.setData({ imageLoading: true });
-    try { const file = await downloadPhoto(this.data.question.image_id); wx.previewImage({ current: file, urls: [file] }); }
-    catch(e) { toast(e); } finally { this.setData({ imageLoading: false }); }
+    try {
+      const file = await downloadPhoto(q.image_id);
+      if (this.data.question && this.data.question.id === q.id) { this.setData({ photoPath: file, imageLoading: false }); wx.previewImage({ current: file, urls: [file] }); }
+    }
+    catch(e) { toast(e); this.setData({ imageLoading: false }); }
   },
   revealReference() {
     if (this.data.busy || !this.data.answer.trim()) return toast('请先填写自己的答案');

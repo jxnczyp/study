@@ -27,8 +27,8 @@ export function installPhotos(app, db, auth) {
       const source = sharp(req.file.buffer, { limitInputPixels: 40000000, animated: false });
       const metadata = await source.metadata();
       if (!['jpeg', 'png', 'webp'].includes(metadata.format)) throw new Error('format');
-      // 电路图、几何图等细线图对分辨率和色度抽样敏感，保留更高上限并使用 4:4:4。
-      data = await source.rotate().resize({ width: 2560, height: 3200, fit: 'inside', withoutEnlargement: true }).flatten({ background: '#fff' }).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
+      // 电路图等细线图需要保真：长边 2048 级别 + 4:4:4；再大会拖慢上传与模型处理（模型内部也会缩放），不再增大。
+      data = await source.rotate().resize({ width: 2048, height: 2560, fit: 'inside', withoutEnlargement: true }).flatten({ background: '#fff' }).jpeg({ quality: 88, chromaSubsampling: '4:4:4' }).toBuffer();
     } catch { return res.status(400).json({ error: '图片无法读取，请选择清晰的 JPG、PNG 或 WebP 图片' }); }
     // 清理一天前未关联错题的草稿图片；已收录的图片始终保留。
     db.prepare('DELETE FROM photos WHERE created_at<? AND id NOT IN (SELECT image_id FROM questions WHERE image_id IS NOT NULL UNION SELECT source_image_id FROM questions WHERE source_image_id IS NOT NULL)').run(Date.now() - 86400000);

@@ -1,7 +1,7 @@
 <view class="page">
   <view class="eyebrow">EVERY MISTAKE MATTERS</view>
   <view class="heading">收录错题</view>
-  <view class="subtitle">整页拍照逐题勾选，或手动录入一道错题。</view>
+  <view class="subtitle">整页拍照逐题勾选收录；只有一道错题时可手动录入。</view>
   <view class="card sheet-card">
     <view class="panel-title">整页识别 · 逐题勾选</view>
     <view class="panel-note">识别印刷题与手写作答，模型独立解题辅助判题；模糊、缺材料或开放性题目标为「待确认」。这不是成绩评定。</view>
@@ -18,7 +18,7 @@
       </view>
       <image wx:if="{{imagePath}}" class="photo-preview" src="{{imagePath}}" mode="aspectFit" bindtap="previewPhoto"/>
       <button class="primary submit" bindtap="analyze" loading="{{busy}}" disabled="{{busy || !imagePath}}">{{assessmentId ? '重新检查（替换识别结果）' : '识别并辅助判题'}} →</button>
-      <view class="photo-tip">请拍清题目、附图及学生最终作答。一次最多处理 40 题；题目较多时建议分区域拍摄。</view>
+      <view class="photo-tip">请拍清题目、附图及学生最终作答。一次最多处理 40 题；题目较多时建议分区域拍摄。识别约需 30–90 秒，请保持页面打开。</view>
     </block>
   </view>
   <view wx:if="{{error}}" class="error">{{error}}</view>
@@ -67,31 +67,7 @@
       <button class="ghost" bindtap="notebook">查看错题本 →</button>
     </view>
   </block>
-  <view class="divider"><view class="divider-line"/><text class="divider-text">或手动录入一道错题</text><view class="divider-line"/></view>
-  <view class="form-columns">
-    <view><view class="label">学科</view><picker range="{{subjects}}" value="{{subjectIndex}}" data-field="subjectIndex" bindchange="pick"><view class="form-picker">{{subjects[subjectIndex]}} ⌄</view></picker></view>
-    <view><view class="label">难度</view><picker range="{{difficulties}}" value="{{difficultyIndex}}" data-field="difficultyIndex" bindchange="pick"><view class="form-picker">{{difficulties[difficultyIndex]}} ⌄</view></picker></view>
-  </view>
-  <view class="form-columns">
-    <view><view class="label">年级（跟随账户）</view><view class="form-picker static">{{accountGrade || '未分类'}}</view></view>
-    <view><view class="label">题型</view><picker range="{{questionTypes}}" value="{{typeIndex}}" data-field="typeIndex" bindchange="pick"><view class="form-picker">{{questionTypes[typeIndex]}} ⌄</view></picker></view>
-  </view>
-  <view class="row"><view class="label">自动分类</view><button class="secondary small" bindtap="autoClassifyTap" loading="{{classifying}}" disabled="{{classifying || busy}}">✦ 按题目内容自动识别学科 / 题型 / 难度</button></view>
-  <view class="label">自定义分类（选填，填写后优先使用）</view>
-  <input class="input" data-field="customSubject" bindinput="input" maxlength="40" placeholder="其他学科 / 专业课程"/>
-  <input class="input" data-field="customType" bindinput="input" maxlength="40" placeholder="其他题型"/>
-  <view class="label">题目标题 *</view>
-  <input class="input" value="{{title}}" data-field="title" bindinput="input" maxlength="100" placeholder="例如：二次函数的顶点与最值" placeholder-class="placeholder"/>
-  <view class="label">题目内容 *</view>
-  <textarea class="textarea" value="{{content}}" data-field="content" bindinput="input" maxlength="10000" placeholder="输入完整题干，选择题请写出选项…" placeholder-class="placeholder"/>
-  <view class="label">正确答案 *</view>
-  <input class="input" value="{{answer}}" data-field="answer" bindinput="input" maxlength="1000" placeholder="填写正确答案" placeholder-class="placeholder"/>
-  <view class="label">思路与解析（选填）</view>
-  <textarea class="textarea short" value="{{explanation}}" data-field="explanation" bindinput="input" maxlength="10000" placeholder="写下解题思路，帮未来的自己少走弯路" placeholder-class="placeholder"/>
-  <view class="label">知识点（选填）</view>
-  <input class="input" value="{{topic}}" data-field="topic" bindinput="input" maxlength="100" placeholder="例如：二次函数" placeholder-class="placeholder"/>
-  <view class="label">出错原因</view>
-  <picker range="{{reasons}}" value="{{reasonIndex}}" data-field="reasonIndex" bindchange="pick"><view class="form-picker">{{reasons[reasonIndex]}} ⌄</view></picker>
-  <view wx:if="{{error}}" class="error">{{error}}</view>
-  <button class="primary submit" bindtap="save" loading="{{busy}}" disabled="{{busy}}">＋ 保存到错题本</button>
+  <view class="divider"><view class="divider-line"/><text class="divider-text">或</text><view class="divider-line"/></view>
+  <button class="ghost" bindtap="openManual">✎ 手动录入一道错题 →</button>
+  <view class="photo-tip">只有一两道错题、不方便拍照时，用手动录入并自动分类。</view>
 </view>

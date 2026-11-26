@@ -6,6 +6,7 @@
     "pages/profile/index",
     "pages/login/index",
     "pages/add/index",
+    "pages/manual/index",
     "pages/detail/index",
     "pages/practice/index"
   ],

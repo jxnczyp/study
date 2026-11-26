@@ -82,10 +82,15 @@ test('study summaries count mastery, recent practice and subjects', () => {
 });
 test('practice submits to server once and renders final score', async () => {
   let calls = 0;
-  const app = { globalData: { user: { id: 7 }, practice: { mode: '复习', questions: [{ id: 1, answer: '2', options: ['1', '2'] }] } } };
-  const p = page('pages/practice/index.js', { '../../utils/api': { request: async (url, data) => { calls++; assert.equal(data.answer, '2'); return { correct: true, answer: '2', explanation: '加法' }; }, loadState: async () => ({}), toast: e => { throw e; } } }, app);
+  const app = { globalData: { user: { id: 7 }, practice: { mode: '复习', questions: [{ id: 1, answer: '2', options: ['1', '2'], image_id: 'photo-1' }] } } };
+  const p = page('pages/practice/index.js', { '../../utils/api': { request: async (url, data) => { calls++; assert.equal(data.answer, '2'); return { correct: true, answer: '2', explanation: '加法' }; }, loadState: async () => ({}), toast: e => { throw e; }, downloadPhoto: async id => '/photo-' + id + '.jpg' } }, app);
   p.onLoad(); p.choose({ currentTarget: { dataset: { index: 1 } } });
   await p.submit(); await p.submit();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(p.data.photoPath, '/photo-photo-1.jpg');
+  const practiceTemplate = read('pages/practice/index.wxml');
+  assert.match(practiceTemplate, /src="\{\{photoPath\}\}"/);
+  assert.match(practiceTemplate, /bindtap="viewPhoto"/);
   assert.equal(calls, 1); assert.equal(p.data.submitted, true);
   p.next(); assert.equal(p.data.finished, true); assert.equal(p.data.accuracy, 100); assert.equal(app.globalData.practice, null);
 });
@@ -99,7 +104,7 @@ test('notebook combines subject, mastery and keyword filters', () => {
 
 test('manual entry auto-classifies untouched fields and saves without an image', async () => {
   let saved; let back = 0;
-  const p = page('pages/add/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
+  const p = page('pages/manual/index.js', { '../../utils/study': load('utils/study.js'), '../../utils/api': {
     requireLogin: () => true, toast: () => {},
     request: async (url, data) => {
       if (url === '/classify') return { subject: '数学', difficulty: '挑战', questionType: '计算题', topic: '一元一次方程' };

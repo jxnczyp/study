@@ -4,8 +4,10 @@
     <view class="row"><view class="heading" style="font-size:36rpx">{{question.subject}} · 多掌握一点</view><text class="subtitle">{{index + 1}} / {{total}}</text></view>
     <view class="progress-track"><view class="progress-fill" style="width:{{progress}}%"/></view>
     <view class="subtitle" style="margin-top:30rpx">{{question.topic}} · {{question.difficulty}}</view>
-    <button wx:if="{{question.image_id}}" class="ghost" bindtap="viewPhoto" loading="{{imageLoading}}" disabled="{{imageLoading}}">▧ 查看题目原图</button>
     <view class="question-text">{{question.content}}</view>
+    <image wx:if="{{photoPath}}" class="photo-preview" src="{{photoPath}}" mode="aspectFit" bindtap="viewPhoto"/>
+    <view wx:if="{{photoPath}}" class="photo-tip">↑ 题目原图（点按可放大）</view>
+    <button wx:elif="{{question.image_id}}" class="ghost" bindtap="viewPhoto" loading="{{imageLoading}}" disabled="{{imageLoading}}">▧ 加载题目原图</button>
     <block wx:if="{{options.length}}">
       <view wx:for="{{options}}" wx:key="index" data-index="{{index}}" bindtap="choose" class="option {{item.selected ? 'selected' : ''}} {{item.correct ? 'correct' : ''}} {{item.incorrect ? 'incorrect' : ''}}"><text class="option-letter">{{item.letter}}</text><text>{{item.value}}</text></view>
     </block>
